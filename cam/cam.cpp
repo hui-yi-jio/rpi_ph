@@ -1,50 +1,70 @@
+#include <stdio.h>
+#include <time.h>
+#include <sys/time.h>
 #include <opencv2/opencv.hpp>
-#include <iostream>
+#include <opencv2/highgui/highgui_c.h>
+
+using namespace cv;
 
 int main() {
-    // 打开摄像头设备 (根据实际情况调整设备号)
-    cv::VideoCapture cap("/dev/video0", cv::CAP_V4L2);
+    // 创建存储目录
+    system("mkdir -p captured_frames");
+    
+    // 打开摄像头
+    VideoCapture cap(0);
     if (!cap.isOpened()) {
-        std::cerr << "无法打开摄像头" << std::endl;
+        printf("错误：无法打开摄像头\n");
         return -1;
     }
-
-    // 设置MJPG格式和分辨率
-    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M','J','P','G'));
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
-
-     // 捕获一帧
-    cv::Mat frame;
-    if (!cap.read(frame)) {
-        fprintf(stderr, "捕获帧失败\n");
-        return -1;
+    
+    // 设置分辨率
+    // 设置摄像头格式为MJPEG
+    cap.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M','J','P','G'));
+    // 如果支持VAAPI
+    cap.set(CAP_PROP_HW_ACCELERATION, VIDEO_ACCELERATION_VAAPI);
+    cap.set(CAP_PROP_FRAME_WIDTH, 3264);
+    cap.set(CAP_PROP_FRAME_HEIGHT, 2448);
+    
+    int frame_count = 0;
+    struct timeval start_time, end_time;
+    gettimeofday(&start_time, NULL);
+    double duration = 5.0;  // 60秒
+    
+    printf("开始捕获帧（持续60秒）...\n");
+    
+    Mat frame;
+    while (true) {
+        // 检查是否超时
+        struct timeval current_time;
+        gettimeofday(&current_time, NULL);
+        double elapsed = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_usec - start_time.tv_usec) / 1000000.0;
+        
+        if (elapsed >= duration) break;
+        
+        // 捕获帧
+        cap >> frame;
+        if (frame.empty()) {
+            printf("错误：读取帧失败\n");
+            break;
+        }
+        
+        // 保存帧
+       // char filename[100];
+       // sprintf(filename, "captured_frames/frame_%04d.jpg", frame_count);
+       // imwrite(filename, frame);
+        
+        frame_count++;
     }
-
-    // 检查是否为MJPG格式（通常为BGR或YUV）
-    if (frame.type() != CV_8UC3) {
-        fprintf(stderr, "未获得BGR格式帧，请检查摄像头设置\n");
-        return -1;
-    }
-
-    // 转换BGR到RGB
-    cv::Mat rgb_frame;
-    cv::cvtColor(frame, rgb_frame, cv::COLOR_BGR2RGB);
-
-    // 将RGB数据存储到连续数组
-    std::vector<uint8_t> rgb_array(rgb_frame.total() * 3);
-    memcpy(rgb_array.data(), rgb_frame.data, rgb_frame.total() * 3);
-
-    printf("OpenCV捕获成功！RGB数组大小: %zu字节\n", rgb_array.size());
-    cap.release();
+    
+    gettimeofday(&end_time, NULL);
+    double total_time = (end_time.tv_sec - start_time.tv_sec) + (end_time.tv_usec - start_time.tv_usec) / 1000000.0;
+    
+    // 输出结果
+    printf("\n捕获完成！\n");
+    printf("总时长: %.2f 秒\n", total_time);
+    printf("总帧数: %d\n", frame_count);
+    printf("平均帧率: %.2f FPS\n", frame_count / total_time);
+    printf("图片已保存至: captured_frames/\n");
+    
     return 0;
 }
-// clang++ cam.cpp -o opencv_capture \
-                                     -I/usr/include/opencv4 \
-                                     -lopencv_core \
-                                     -lopencv_highgui \
-                                     -lopencv_videoio \
-                                     -lopencv_imgcodecs \
-                                     -lopencv_imgproc \
-                                     -lopencv_video
-
